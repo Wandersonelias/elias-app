@@ -1,20 +1,27 @@
-FROM php:8.0-fpm-alpine
+FROM php:8.1-fpm
 
-RUN apk add --no-cache nginx wget
+WORKDIR /var/www/html
 
-RUN mkdir -p /run/nginx
+COPY composer.json composer.lock .
+RUN composer install
 
-COPY docker/nginx.conf /etc/nginx/nginx.conf
+COPY . .
 
-RUN mkdir -p /app
-COPY . /app
+EXPOSE 80
 
-RUN sh -c "wget http://getcomposer.org/composer.phar && chmod a+x composer.phar && mv composer.phar /usr/local/bin/composer"
-RUN cd /app && \
-    /usr/local/bin/composer install --no-dev
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    mysql-client \
+    pdo-mysql \
+    zip \
+    unzip
 
-EXPOSE 8080
+RUN docker-php-ext-install pdo_pgsql
 
-RUN chown -R www-data: /app
+# Generate the application key
+RUN php artisan key:generate
 
-CMD sh /app/docker/startup.sh
+# Run database migrations
+RUN php artisan migrate
+
+CMD ["php-fpm"]
